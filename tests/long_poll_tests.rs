@@ -198,6 +198,10 @@ impl Provider for LongPollingSqliteProvider {
     ) -> Result<std::collections::HashMap<String, String>, ProviderError> {
         self.inner.get_kv_all_values(instance).await
     }
+
+    async fn get_instance_stats(&self, instance: &str) -> Result<Option<duroxide::SystemStats>, ProviderError> {
+        self.inner.get_instance_stats(instance).await
+    }
 }
 
 // --- Tests ---

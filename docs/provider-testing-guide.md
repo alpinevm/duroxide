@@ -495,7 +495,7 @@ async fn test_my_provider_worker_queue_fifo_ordering() {
 
 ### What the Tests Validate
 
-The validation test suite includes **166 individual test functions** organized into 18 categories:
+The validation test suite includes **169 individual test functions** organized into 18 categories:
 
 1. **Atomicity Tests (4 tests)**
    - `test_atomicity_failure_rollback` - All-or-nothing commit semantics, rollback on failure
@@ -561,7 +561,7 @@ The validation test suite includes **166 individual test functions** organized i
    - `test_null_version_handling` - NULL version handled correctly
    - `test_sub_orchestration_instance_creation` - Sub-orchestrations follow same pattern
 
-8. **Management Capability Tests (7 tests)**
+8. **Management Capability Tests (10 tests)**
    - `test_list_instances` - Instance listing returns all instance IDs
    - `test_list_instances_by_status` - Instance filtering by status works correctly
    - `test_list_executions` - Execution queries return all execution IDs
@@ -569,6 +569,9 @@ The validation test suite includes **166 individual test functions** organized i
    - `test_get_execution_info` - Execution metadata retrieval
    - `test_get_system_metrics` - System metrics are accurate
    - `test_get_queue_depths` - Queue depth reporting is correct
+   - `test_get_instance_stats_nonexistent` - Returns None for unknown instance
+   - `test_get_instance_stats_history` - History event count and byte size
+   - `test_get_instance_stats_kv` - KV key count and value byte size
 
 9. **Long Polling Tests (5 tests)**
    - `test_short_poll_returns_immediately` - Short-poll providers return immediately when queue is empty

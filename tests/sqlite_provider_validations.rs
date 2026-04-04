@@ -117,6 +117,12 @@ mod tests {
         test_fetch_returns_terminal_state_when_orchestration_failed,
         test_get_execution_info,
         test_get_instance_info,
+        test_get_instance_stats_carry_forward,
+        test_get_instance_stats_history,
+        test_get_instance_stats_kv,
+        test_get_instance_stats_kv_delta_only,
+        test_get_instance_stats_kv_merged,
+        test_get_instance_stats_nonexistent,
         test_get_queue_depths,
         test_get_system_metrics,
         // Instance creation tests
@@ -130,6 +136,8 @@ mod tests {
         test_list_instances,
         test_list_instances_by_status,
         test_lock_expiration_during_ack,
+        test_read_corrupted_history_returns_error,
+        test_read_with_execution_corrupted_history_returns_error,
         // Lock expiration tests
         test_lock_expires_after_timeout,
         test_lock_released_only_on_successful_ack,
@@ -279,6 +287,17 @@ mod tests {
     #[tokio::test]
     async fn test_sqlite_lock_expiration_during_ack() {
         test_lock_expiration_during_ack(&SqliteTestFactory).await;
+    }
+
+    #[tokio::test]
+    async fn test_sqlite_read_corrupted_history_returns_error() {
+        test_read_corrupted_history_returns_error(&SharedSqliteTestFactory::new().await).await;
+    }
+
+    #[tokio::test]
+    async fn test_sqlite_read_with_execution_corrupted_history_returns_error() {
+        test_read_with_execution_corrupted_history_returns_error(&SharedSqliteTestFactory::new().await)
+            .await;
     }
 
     // Instance locking tests
@@ -459,6 +478,36 @@ mod tests {
     #[tokio::test]
     async fn test_sqlite_get_queue_depths() {
         test_get_queue_depths(&SqliteTestFactory).await;
+    }
+
+    #[tokio::test]
+    async fn test_sqlite_get_instance_stats_nonexistent() {
+        test_get_instance_stats_nonexistent(&SqliteTestFactory).await;
+    }
+
+    #[tokio::test]
+    async fn test_sqlite_get_instance_stats_history() {
+        test_get_instance_stats_history(&SqliteTestFactory).await;
+    }
+
+    #[tokio::test]
+    async fn test_sqlite_get_instance_stats_kv() {
+        test_get_instance_stats_kv(&SqliteTestFactory).await;
+    }
+
+    #[tokio::test]
+    async fn test_sqlite_get_instance_stats_carry_forward() {
+        test_get_instance_stats_carry_forward(&SqliteTestFactory).await;
+    }
+
+    #[tokio::test]
+    async fn test_sqlite_get_instance_stats_kv_delta_only() {
+        test_get_instance_stats_kv_delta_only(&SqliteTestFactory).await;
+    }
+
+    #[tokio::test]
+    async fn test_sqlite_get_instance_stats_kv_merged() {
+        test_get_instance_stats_kv_merged(&SqliteTestFactory).await;
     }
 
     // Instance creation tests

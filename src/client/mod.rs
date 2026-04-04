@@ -910,7 +910,6 @@ impl Client {
     /// Read all KV entries for a given instance.
     ///
     /// Returns a map of key→value pairs. Returns an empty map if no keys exist.
-    /// Reads directly from the provider's materialized `kv_store` table.
     ///
     /// # Errors
     ///
@@ -1022,6 +1021,20 @@ impl Client {
     }
 
     // ===== Rich Management Methods =====
+
+    /// Read runtime introspection stats for an orchestration instance.
+    ///
+    /// Returns [`SystemStats`](crate::SystemStats) containing
+    /// history size, event queue depth, KV usage, etc.
+    ///
+    /// Returns `Ok(None)` if the instance doesn't exist.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ClientError`] if the provider query fails.
+    pub async fn get_orchestration_stats(&self, instance: &str) -> Result<Option<crate::SystemStats>, ClientError> {
+        self.store.get_instance_stats(instance).await.map_err(ClientError::from)
+    }
 
     /// List all orchestration instances.
     ///

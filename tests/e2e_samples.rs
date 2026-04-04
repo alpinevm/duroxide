@@ -2608,3 +2608,69 @@ async fn sample_kv_read_modify_write_counter() {
 
     rt.shutdown(None).await;
 }
+
+/// Orchestration Stats: query runtime introspection stats after completion.
+///
+/// Highlights:
+/// - `Client::get_orchestration_stats()` returns history size, KV usage, etc.
+/// - Stats are computed on-demand from the provider (no runtime injection)
+/// - Returns `None` for non-existent instances
+#[tokio::test]
+async fn sample_orchestration_stats() {
+    let store = Arc::new(
+        duroxide::providers::sqlite::SqliteProvider::new_in_memory()
+            .await
+            .unwrap(),
+    );
+    let activities = ActivityRegistry::builder()
+        .register("FetchData", |_ctx: ActivityContext, url: String| async move {
+            Ok(format!("data from {url}"))
+        })
+        .build();
+    let orchestrations = OrchestrationRegistry::builder()
+        .register("DataPipeline", |ctx: OrchestrationContext, _: String| async move {
+            let result = ctx
+                .schedule_activity("FetchData", "https://api.example.com".to_string())
+                .await?;
+            ctx.set_kv_value("last_fetch", &result);
+            ctx.set_kv_value("status", "complete");
+            Ok(result)
+        })
+        .build();
+
+    let rt = runtime::Runtime::start_with_store(store.clone(), activities, orchestrations).await;
+    let client = Client::new(store.clone());
+
+    // Stats return None for non-existent instances
+    assert!(client.get_orchestration_stats("missing").await.unwrap().is_none());
+
+    // Start and wait for completion
+    client
+        .start_orchestration("pipeline-1", "DataPipeline", "")
+        .await
+        .unwrap();
+    client
+        .wait_for_orchestration("pipeline-1", Duration::from_secs(5))
+        .await
+        .unwrap();
+
+    // Query stats — history events, byte size, KV usage
+    let stats = client
+        .get_orchestration_stats("pipeline-1")
+        .await
+        .unwrap()
+        .expect("stats should exist after completion");
+
+    // History: Started + ActivityScheduled + ActivityCompleted + Completed = 4 events minimum
+    assert!(stats.history_event_count >= 4);
+    assert!(stats.history_size_bytes > 0);
+
+    // KV: 2 keys set ("last_fetch" + "status")
+    assert_eq!(stats.kv_user_key_count, 2);
+    assert!(stats.kv_total_value_bytes > 0);
+
+    // No pending carry-forward events for a completed orchestration
+    assert_eq!(stats.queue_pending_count, 0);
+
+    rt.shutdown(None).await;
+}

@@ -2125,9 +2125,14 @@ pub trait Provider: Any + Send + Sync {
         &self,
         instance: &str,
     ) -> Result<std::collections::HashMap<String, String>, ProviderError>;
-}
 
-/// Management and observability provider interface.
+    /// Compute runtime introspection stats for an orchestration instance.
+    ///
+    /// Returns `Ok(None)` if the instance does not exist.
+    /// Providers compute this directly from storage (history table, kv_store table)
+    /// rather than the runtime injecting stats into the KV store on every turn.
+    async fn get_instance_stats(&self, instance: &str) -> Result<Option<crate::SystemStats>, ProviderError>;
+}
 pub mod management;
 
 pub mod instrumented;

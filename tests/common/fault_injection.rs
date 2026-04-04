@@ -294,6 +294,10 @@ impl Provider for PoisonInjectingProvider {
     ) -> Result<std::collections::HashMap<String, String>, ProviderError> {
         self.inner.get_kv_all_values(instance).await
     }
+
+    async fn get_instance_stats(&self, instance: &str) -> Result<Option<duroxide::SystemStats>, ProviderError> {
+        self.inner.get_instance_stats(instance).await
+    }
 }
 
 /// A provider wrapper that bypasses the capability filter on fetch_orchestration_item.
@@ -453,6 +457,10 @@ impl Provider for FilterBypassProvider {
         instance: &str,
     ) -> Result<std::collections::HashMap<String, String>, ProviderError> {
         self.inner.get_kv_all_values(instance).await
+    }
+
+    async fn get_instance_stats(&self, instance: &str) -> Result<Option<duroxide::SystemStats>, ProviderError> {
+        self.inner.get_instance_stats(instance).await
     }
 }
 
@@ -705,5 +713,9 @@ impl Provider for FailingProvider {
         instance: &str,
     ) -> Result<std::collections::HashMap<String, String>, ProviderError> {
         self.inner.get_kv_all_values(instance).await
+    }
+
+    async fn get_instance_stats(&self, instance: &str) -> Result<Option<duroxide::SystemStats>, ProviderError> {
+        self.inner.get_instance_stats(instance).await
     }
 }

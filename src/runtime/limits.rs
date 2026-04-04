@@ -8,7 +8,7 @@
 ///
 /// When the list exceeds this limit the oldest events (by history order) are
 /// dropped and a warning is logged.
-pub const MAX_CARRY_FORWARD_EVENTS: usize = 20;
+pub const MAX_CARRY_FORWARD_EVENTS: usize = 100;
 
 /// Maximum size in bytes for the custom status string set via
 /// `ctx.set_custom_status()`.
@@ -33,13 +33,13 @@ pub const MAX_WORKER_TAGS: usize = 5;
 /// orchestration is failed with an Infrastructure error.
 pub const MAX_TAG_NAME_BYTES: usize = 256;
 
-/// Maximum number of KV keys per orchestration instance.
+/// Maximum number of **user** KV keys per orchestration instance.
 ///
 /// Enforced in `validate_limits()` after the orchestration turn completes.
 /// If exceeded, the orchestration is failed with a non-retryable application error.
-pub const MAX_KV_KEYS: usize = 100;
+pub const MAX_KV_KEYS: usize = 150;
 
-/// Maximum size of a single KV value in bytes (16 KiB).
+/// Maximum size of a single KV value in bytes (64 KiB).
 ///
 /// Enforced in `validate_limits()` by scanning `KeyValueSet` events in the history delta.
-pub const MAX_KV_VALUE_BYTES: usize = 16 * 1024;
+pub const MAX_KV_VALUE_BYTES: usize = 64 * 1024;

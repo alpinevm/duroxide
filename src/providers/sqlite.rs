@@ -2455,6 +2455,114 @@ impl Provider for SqliteProvider {
         }
         Ok(map)
     }
+
+    async fn get_instance_stats(&self, instance: &str) -> Result<Option<crate::SystemStats>, ProviderError> {
+        // Check instance exists and get current execution_id
+        let exec_row = sqlx::query("SELECT current_execution_id FROM instances WHERE instance_id = ?")
+            .bind(instance)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|e| Self::sqlx_to_provider_error("get_instance_stats", e))?;
+
+        let exec_id: i64 = match exec_row {
+            Some(row) => row
+                .try_get("current_execution_id")
+                .map_err(|e| Self::sqlx_to_provider_error("get_instance_stats", e))?,
+            None => return Ok(None),
+        };
+
+        // History event count and byte size for current execution
+        let history_row = sqlx::query(
+            "SELECT COUNT(*) as cnt, COALESCE(SUM(LENGTH(event_data)), 0) as size_bytes \
+             FROM history WHERE instance_id = ? AND execution_id = ?",
+        )
+        .bind(instance)
+        .bind(exec_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| Self::sqlx_to_provider_error("get_instance_stats", e))?;
+
+        let history_event_count: i64 = history_row
+            .try_get("cnt")
+            .map_err(|e| Self::sqlx_to_provider_error("get_instance_stats", e))?;
+        let history_size_bytes: i64 = history_row
+            .try_get("size_bytes")
+            .map_err(|e| Self::sqlx_to_provider_error("get_instance_stats", e))?;
+
+        // KV stats: merge kv_store + kv_delta (delta overrides store, tombstones excluded).
+        let kv_row = sqlx::query(
+            "SELECT COUNT(*) as cnt, COALESCE(SUM(LENGTH(value)), 0) as size_bytes \
+             FROM ( \
+                 SELECT COALESCE(d.key, s.key) AS key, \
+                        CASE WHEN d.key IS NOT NULL THEN d.value ELSE s.value END AS value \
+                 FROM kv_store s \
+                 LEFT JOIN kv_delta d ON s.instance_id = d.instance_id AND s.key = d.key \
+                 WHERE s.instance_id = ? \
+                 UNION \
+                 SELECT d.key, d.value \
+                 FROM kv_delta d \
+                 LEFT JOIN kv_store s ON d.instance_id = s.instance_id AND d.key = s.key \
+                 WHERE d.instance_id = ? AND s.key IS NULL \
+             ) merged WHERE value IS NOT NULL",
+        )
+        .bind(instance)
+        .bind(instance)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| Self::sqlx_to_provider_error("get_instance_stats", e))?;
+
+        let kv_user_key_count: i64 = kv_row
+            .try_get("cnt")
+            .map_err(|e| Self::sqlx_to_provider_error("get_instance_stats", e))?;
+        let kv_total_value_bytes: i64 = kv_row
+            .try_get("size_bytes")
+            .map_err(|e| Self::sqlx_to_provider_error("get_instance_stats", e))?;
+
+        // Queue pending count: count carry_forward_events from the OrchestrationStarted event.
+        // These are unprocessed queue messages carried from the previous execution.
+        let carry_forward_row = sqlx::query(
+            "SELECT event_data FROM history \
+             WHERE instance_id = ? AND execution_id = ? AND event_id = 1",
+        )
+        .bind(instance)
+        .bind(exec_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| Self::sqlx_to_provider_error("get_instance_stats", e))?;
+
+        let queue_pending_count = match carry_forward_row {
+            Some(row) => {
+                let data: String = row
+                    .try_get("event_data")
+                    .map_err(|e| Self::sqlx_to_provider_error("get_instance_stats", e))?;
+                let event: crate::Event =
+                    serde_json::from_str(&data).map_err(|e| {
+                        ProviderError::permanent(
+                            "get_instance_stats",
+                            format!(
+                                "Failed to deserialize OrchestrationStarted event: {e}"
+                            ),
+                        )
+                    })?;
+                match event.kind {
+                    crate::EventKind::OrchestrationStarted {
+                        carry_forward_events: Some(ref events),
+                        ..
+                    } => events.len() as u64,
+                    _ => 0,
+                }
+            }
+            None => 0,
+        };
+
+        Ok(Some(crate::SystemStats {
+            history_event_count: history_event_count as u64,
+            history_size_bytes: history_size_bytes as u64,
+            queue_pending_count,
+            kv_user_key_count: kv_user_key_count as u64,
+            kv_total_value_bytes: kv_total_value_bytes as u64,
+        }))
+    }
 }
 
 #[async_trait::async_trait]

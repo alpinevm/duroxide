@@ -180,19 +180,21 @@ fn validate_limits(
         }
     }
 
-    if effective_keys.len() > crate::runtime::limits::MAX_KV_KEYS {
+    let user_key_count = effective_keys.len();
+
+    if user_key_count > crate::runtime::limits::MAX_KV_KEYS {
         tracing::error!(
             target: "duroxide::runtime",
             instance_id = %instance,
             execution_id = %execution_id,
-            kv_key_count = effective_keys.len(),
+            kv_key_count = user_key_count,
             max_keys = crate::runtime::limits::MAX_KV_KEYS,
             "KV key count exceeds limit, failing orchestration"
         );
         fail_orchestration_for_limit(
             format!(
                 "KV key count ({}) exceeds limit ({})",
-                effective_keys.len(),
+                user_key_count,
                 crate::runtime::limits::MAX_KV_KEYS,
             ),
             history_mgr,

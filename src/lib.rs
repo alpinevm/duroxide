@@ -789,6 +789,21 @@ pub(crate) const SYSCALL_ACTIVITY_NEW_GUID: &str = "__duroxide_syscall:new_guid"
 pub(crate) const SYSCALL_ACTIVITY_UTC_NOW_MS: &str = "__duroxide_syscall:utc_now_ms";
 pub(crate) const SYSCALL_ACTIVITY_GET_KV_VALUE: &str = "__duroxide_syscall:get_kv_value";
 
+/// Runtime introspection stats, available via [`Client::get_orchestration_stats`].
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct SystemStats {
+    /// Total events in history for the current execution.
+    pub history_event_count: u64,
+    /// Approximate serialized size of the full history in bytes.
+    pub history_size_bytes: u64,
+    /// Number of unprocessed queue messages carried forward from the previous execution.
+    pub queue_pending_count: u64,
+    /// Number of KV keys.
+    pub kv_user_key_count: u64,
+    /// Sum of all KV value sizes in bytes.
+    pub kv_total_value_bytes: u64,
+}
+
 use crate::_typed_codec::Codec;
 // LogLevel is now defined locally in this file
 use serde::{Deserialize, Serialize};
@@ -3300,6 +3315,16 @@ impl OrchestrationContext {
         self.inner.lock().unwrap().kv_state.len()
     }
 
+    /// Read the runtime introspection stats for this orchestration.
+    ///
+    /// Returns `None` on the very first turn of a brand-new orchestration
+    /// (stats haven't been acked yet). Available from the second turn onward.
+    /// Stats persist through terminal state until instance deletion.
+    pub fn get_system_stats(&self) -> Option<crate::SystemStats> {
+        // TODO: remove this method — stats are now accessed via Client::get_orchestration_stats()
+        None
+    }
+
     /// Clear a single key from the KV store.
     ///
     /// Emits a `KeyValueCleared` history event. After this call,
@@ -3942,5 +3967,38 @@ impl OrchestrationContext {
             result = f2 => Either3::Second(result),
             result = f3 => Either3::Third(result),
         }
+    }
+}
+
+#[cfg(test)]
+mod system_stats_tests {
+    use super::*;
+
+    #[test]
+    fn system_stats_serialization_roundtrip() {
+        let stats = SystemStats {
+            history_event_count: 847,
+            history_size_bytes: 52301,
+            queue_pending_count: 3,
+            kv_user_key_count: 42,
+            kv_total_value_bytes: 8192,
+        };
+        let json = serde_json::to_string(&stats).unwrap();
+        let deserialized: SystemStats = serde_json::from_str(&json).unwrap();
+        assert_eq!(stats, deserialized);
+    }
+
+    #[test]
+    fn system_stats_json_format() {
+        let stats = SystemStats {
+            history_event_count: 10,
+            history_size_bytes: 2000,
+            queue_pending_count: 0,
+            kv_user_key_count: 5,
+            kv_total_value_bytes: 1024,
+        };
+        let json = serde_json::to_string(&stats).unwrap();
+        assert!(json.contains("\"history_event_count\":10"));
+        assert!(json.contains("\"queue_pending_count\":0"));
     }
 }

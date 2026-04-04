@@ -2159,6 +2159,10 @@ impl Provider for RecordingProvider {
     ) -> Result<std::collections::HashMap<String, String>, ProviderError> {
         self.inner.get_kv_all_values(instance).await
     }
+
+    async fn get_instance_stats(&self, instance: &str) -> Result<Option<duroxide::SystemStats>, ProviderError> {
+        self.inner.get_instance_stats(instance).await
+    }
 }
 
 /// Ensure a child sub-orchestration can receive CancelInstance from BOTH:

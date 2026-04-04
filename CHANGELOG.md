@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.27] - 2026-04-04
+
+### Added
+
+- **Orchestration runtime stats API** — Added `Client::get_orchestration_stats()` returning
+  `SystemStats` for per-instance history and KV usage introspection.
+- **Provider management contract for stats** — Added `Provider::get_instance_stats()` plus
+  provider validation coverage for non-existent instances, history metrics, and KV metrics.
+- **New orchestration stats sample coverage** — Added management and e2e tests covering the new
+  orchestration stats surface.
+- **Corrupted history validation tests** — Added `test_read_corrupted_history_returns_error` and
+  `test_read_with_execution_corrupted_history_returns_error` to the provider validation suite.
+
+### Changed
+
+- **Higher orchestration limits** — Increased `MAX_CARRY_FORWARD_EVENTS` from 20 to 100,
+  `MAX_KV_KEYS` from 100 to 150, and `MAX_KV_VALUE_BYTES` from 16 KiB to 64 KiB.
+- **Documentation refresh for stats and limits** — Updated orchestration and provider docs to
+  describe the new instance stats APIs, provider requirements, and revised limits.
+
+### Fixed
+
+- **SQLite get_instance_stats deserialization** — Fixed silent `.ok()` swallowing on
+  carry_forward event parsing; errors now propagate as `ProviderError::permanent`.
+
 ## [0.1.26] - 2026-03-15
 
 **Release:** <https://crates.io/crates/duroxide/0.1.26>
@@ -1103,5 +1128,4 @@ return ctx.continue_as_new(input).await;
 - OpenTelemetry metrics and structured logging
 - Provider validation test suite
 - Comprehensive documentation
-
 

@@ -382,6 +382,7 @@ Here's every method you need to implement, organized by complexity:
 | `read_with_execution()` | Read specific execution's history |
 | `get_kv_value()` | Read a KV entry for an instance |
 | `get_kv_all_values()` | Read all KV entries for an instance |
+| `get_instance_stats()` | Instance introspection stats |
 | `list_instances()` | Management API |
 | `list_executions()` | Management API |
 
@@ -550,6 +551,13 @@ impl Provider for MyProvider {
         instance: &str,
     ) -> Result<std::collections::HashMap<String, String>, ProviderError> {
         todo!("Read all entries from kv_store table for instance")
+    }
+
+    async fn get_instance_stats(
+        &self,
+        instance: &str,
+    ) -> Result<Option<duroxide::SystemStats>, ProviderError> {
+        todo!("Query history count/size, kv count/size, carry-forward count")
     }
 }
 ```
@@ -2000,6 +2008,7 @@ Before considering your provider complete:
 - [ ] `get_kv_value()` returns `Ok(Some(value))` for existing keys
 - [ ] `get_kv_value()` returns `Ok(None)` for missing keys or nonexistent instances
 - [ ] `get_kv_all_values()` returns all key-value pairs for an instance
+- [ ] `get_instance_stats()` returns history/KV metrics or None for non-existent instance
 - [ ] KV entries are **instance-scoped** — execution pruning does NOT delete KV entries
 - [ ] Instance deletion cascades to `kv_store` entries
 - [ ] KV entries are isolated between instances (same key name, different values)
@@ -2101,6 +2110,9 @@ pub trait ProviderAdmin: Send + Sync {
     // System metrics
     async fn get_system_metrics(&self) -> Result<SystemMetrics, ProviderError>;
     async fn get_queue_depths(&self) -> Result<QueueDepths, ProviderError>;
+
+    // Instance introspection (on Provider trait, not ProviderAdmin)
+    async fn get_instance_stats(&self, instance: &str) -> Result<Option<SystemStats>, ProviderError>;
 
     // Instance hierarchy (for cascade deletion)
     async fn get_parent_id(&self, instance: &str) -> Result<Option<String>, ProviderError>;

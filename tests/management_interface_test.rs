@@ -949,3 +949,262 @@ async fn test_management_all_status_types() {
     let unknown = mgmt.list_instances_by_status("UnknownStatus").await.unwrap();
     assert!(unknown.is_empty(), "Unknown status should return empty list");
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Orchestration stats (Client::get_orchestration_stats)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Client::get_orchestration_stats returns stats after orchestration completes.
+#[tokio::test]
+async fn client_get_orchestration_stats_after_completion() {
+    let store = Arc::new(SqliteProvider::new_in_memory().await.unwrap());
+    let activities = ActivityRegistry::builder().build();
+    let orchestrations = OrchestrationRegistry::builder()
+        .register("StatsOrch", |ctx: OrchestrationContext, _: String| async move {
+            ctx.set_kv_value("user_key", "user_value");
+            Ok("done".to_string())
+        })
+        .build();
+
+    let rt = runtime::Runtime::start_with_store(store.clone(), activities, orchestrations).await;
+    let client = Client::new(store.clone());
+    client
+        .start_orchestration("inst-stats-1", "StatsOrch", "")
+        .await
+        .unwrap();
+    client
+        .wait_for_orchestration("inst-stats-1", Duration::from_secs(5))
+        .await
+        .unwrap();
+
+    let stats = client
+        .get_orchestration_stats("inst-stats-1")
+        .await
+        .unwrap()
+        .expect("stats should be present after completion");
+    assert!(stats.history_event_count > 0, "should have history events");
+    assert_eq!(stats.kv_user_key_count, 1, "one user key was set");
+    assert!(stats.kv_total_value_bytes > 0, "user value bytes should be non-zero");
+
+    rt.shutdown(None).await;
+}
+
+/// Client::get_orchestration_stats returns None for non-existent instance.
+#[tokio::test]
+async fn client_get_orchestration_stats_nonexistent() {
+    let store = Arc::new(SqliteProvider::new_in_memory().await.unwrap());
+    let client = Client::new(store);
+    let stats = client.get_orchestration_stats("no-such-instance").await.unwrap();
+    assert!(stats.is_none());
+}
+
+/// Stats reflect accurate KV metrics across multiple keys.
+#[tokio::test]
+async fn client_orchestration_stats_kv_metrics_accuracy() {
+    let store = Arc::new(SqliteProvider::new_in_memory().await.unwrap());
+    let activities = ActivityRegistry::builder().build();
+    let orchestrations = OrchestrationRegistry::builder()
+        .register("MultiKV", |ctx: OrchestrationContext, _: String| async move {
+            ctx.set_kv_value("k1", "aaa"); // 3 bytes
+            ctx.set_kv_value("k2", "bbbbb"); // 5 bytes
+            ctx.set_kv_value("k3", "cc"); // 2 bytes
+            Ok("done".to_string())
+        })
+        .build();
+
+    let rt = runtime::Runtime::start_with_store(store.clone(), activities, orchestrations).await;
+    let client = Client::new(store.clone());
+    client
+        .start_orchestration("inst-multi-kv", "MultiKV", "")
+        .await
+        .unwrap();
+    client
+        .wait_for_orchestration("inst-multi-kv", Duration::from_secs(5))
+        .await
+        .unwrap();
+
+    let stats = client
+        .get_orchestration_stats("inst-multi-kv")
+        .await
+        .unwrap()
+        .expect("stats should exist");
+    assert_eq!(stats.kv_user_key_count, 3);
+    assert_eq!(stats.kv_total_value_bytes, 10); // 3 + 5 + 2
+
+    rt.shutdown(None).await;
+}
+
+/// Stats report accurate history_size_bytes for large histories (>256 KB).
+#[tokio::test]
+async fn client_orchestration_stats_large_history_size() {
+    let store = Arc::new(SqliteProvider::new_in_memory().await.unwrap());
+    let activities = ActivityRegistry::builder()
+        .register("BigResult", |_ctx: ActivityContext, input: String| async move {
+            let n: usize = input.parse().unwrap_or(0);
+            // Each activity returns ~64 KB × n of data
+            Ok("X".repeat(64 * 1024 * n))
+        })
+        .build();
+    let orchestrations = OrchestrationRegistry::builder()
+        .register("BigHistory", |ctx: OrchestrationContext, _: String| async move {
+            // 4 activities with results of 64KB, 128KB, 192KB, 256KB
+            for i in 1..=4u32 {
+                ctx.schedule_activity("BigResult", i.to_string()).await?;
+            }
+            Ok("done".to_string())
+        })
+        .build();
+
+    let rt = runtime::Runtime::start_with_store(store.clone(), activities, orchestrations).await;
+    let client = Client::new(store.clone());
+    client.start_orchestration("big-hist", "BigHistory", "").await.unwrap();
+    client
+        .wait_for_orchestration("big-hist", Duration::from_secs(10))
+        .await
+        .unwrap();
+
+    let stats = client
+        .get_orchestration_stats("big-hist")
+        .await
+        .unwrap()
+        .expect("stats should exist");
+
+    // 4 activities: Scheduled+Completed each = 8 events, plus Started + Completed = 10
+    assert_eq!(stats.history_event_count, 10);
+    // Payload: activity results are 64KB, 128KB, 192KB, 256KB = 640KB total in results alone
+    // Plus JSON serialization overhead, input strings, event metadata
+    assert!(
+        stats.history_size_bytes > 256 * 1024,
+        "history should be >256 KB, got {} bytes",
+        stats.history_size_bytes,
+    );
+    assert!(
+        stats.history_size_bytes < 1024 * 1024,
+        "history should be <1 MB, got {} bytes",
+        stats.history_size_bytes,
+    );
+
+    rt.shutdown(None).await;
+}
+
+/// Stats report accurate kv_total_value_bytes for large KV values.
+#[tokio::test]
+async fn client_orchestration_stats_large_kv_values() {
+    let store = Arc::new(SqliteProvider::new_in_memory().await.unwrap());
+    let activities = ActivityRegistry::builder().build();
+    let orchestrations = OrchestrationRegistry::builder()
+        .register("BigKV", |ctx: OrchestrationContext, _: String| async move {
+            // 4 keys × 16 KB each = 64 KB total
+            for i in 0..4 {
+                ctx.set_kv_value(format!("big_{i}"), "Y".repeat(16 * 1024));
+            }
+            Ok("done".to_string())
+        })
+        .build();
+
+    let rt = runtime::Runtime::start_with_store(store.clone(), activities, orchestrations).await;
+    let client = Client::new(store.clone());
+    client.start_orchestration("big-kv", "BigKV", "").await.unwrap();
+    client
+        .wait_for_orchestration("big-kv", Duration::from_secs(5))
+        .await
+        .unwrap();
+
+    let stats = client
+        .get_orchestration_stats("big-kv")
+        .await
+        .unwrap()
+        .expect("stats should exist");
+
+    assert_eq!(stats.kv_user_key_count, 4);
+    assert_eq!(stats.kv_total_value_bytes, 4 * 16 * 1024); // exact: 65536
+
+    rt.shutdown(None).await;
+}
+
+/// Stats report zero queue_pending_count for a fresh orchestration (no carry-forward).
+#[tokio::test]
+async fn client_orchestration_stats_no_carry_forward() {
+    let store = Arc::new(SqliteProvider::new_in_memory().await.unwrap());
+    let activities = ActivityRegistry::builder().build();
+    let orchestrations = OrchestrationRegistry::builder()
+        .register("Simple", |_ctx: OrchestrationContext, _: String| async move {
+            Ok("done".to_string())
+        })
+        .build();
+
+    let rt = runtime::Runtime::start_with_store(store.clone(), activities, orchestrations).await;
+    let client = Client::new(store.clone());
+    client.start_orchestration("no-cf", "Simple", "").await.unwrap();
+    client
+        .wait_for_orchestration("no-cf", Duration::from_secs(5))
+        .await
+        .unwrap();
+
+    let stats = client
+        .get_orchestration_stats("no-cf")
+        .await
+        .unwrap()
+        .expect("stats should exist");
+    assert_eq!(stats.queue_pending_count, 0);
+
+    rt.shutdown(None).await;
+}
+
+/// After ContinueAsNew, stats reflect the current (latest) execution only.
+#[tokio::test]
+async fn client_orchestration_stats_after_continue_as_new() {
+    let store = Arc::new(SqliteProvider::new_in_memory().await.unwrap());
+    let activities = ActivityRegistry::builder()
+        .register("Noop", |_ctx: ActivityContext, _: String| async move {
+            Ok("ok".to_string())
+        })
+        .build();
+    let orchestrations = OrchestrationRegistry::builder()
+        .register("CANStats", |ctx: OrchestrationContext, input: String| async move {
+            let n: u32 = input.parse().unwrap_or(0);
+            ctx.set_kv_value("iter", n.to_string());
+            if n < 2 {
+                // Activity creates a yield point so CAN sees history
+                ctx.schedule_activity("Noop", "").await?;
+                ctx.continue_as_new((n + 1).to_string()).await
+            } else {
+                Ok(format!("done:{n}"))
+            }
+        })
+        .build();
+
+    let rt = runtime::Runtime::start_with_store(store.clone(), activities, orchestrations).await;
+    let client = Client::new(store.clone());
+    client.start_orchestration("can-stats", "CANStats", "0").await.unwrap();
+    client
+        .wait_for_orchestration("can-stats", Duration::from_secs(10))
+        .await
+        .unwrap();
+
+    let stats = client
+        .get_orchestration_stats("can-stats")
+        .await
+        .unwrap()
+        .expect("stats should exist after CAN completion");
+
+    // History events should be from the CURRENT (final) execution only,
+    // not accumulated across all executions. Final execution just does
+    // set_kv + Ok("done:2") = OrchestrationStarted + OrchestrationCompleted.
+    assert!(
+        stats.history_event_count >= 2,
+        "should have at least Started + Completed, got {}",
+        stats.history_event_count,
+    );
+    // Should NOT have the full history from all 3 executions
+    assert!(
+        stats.history_event_count <= 5,
+        "should only count current execution events, got {}",
+        stats.history_event_count,
+    );
+
+    // KV: "iter" key from the final execution (kv_store is instance-scoped, persists across CAN)
+    assert!(stats.kv_user_key_count >= 1, "should have at least 1 KV key");
+
+    rt.shutdown(None).await;
+}

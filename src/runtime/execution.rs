@@ -425,7 +425,7 @@ impl Runtime {
     /// Per-name FIFO matching: each active (non-cancelled) subscription consumes one
     /// arrival for its name. Remaining arrivals are returned in history (event_id) order
     /// to preserve cross-name FIFO.
-    fn collect_unmatched_queue_messages<'a>(
+    pub(crate) fn collect_unmatched_queue_messages<'a>(
         history: impl Iterator<Item = &'a Event>,
         _instance: &str,
     ) -> Vec<(String, String)> {
@@ -895,8 +895,8 @@ mod tests {
     }
 
     #[test]
-    fn max_carry_forward_constant_is_20() {
-        assert_eq!(Runtime::MAX_CARRY_FORWARD, 20);
+    fn max_carry_forward_constant_is_100() {
+        assert_eq!(Runtime::MAX_CARRY_FORWARD, 100);
     }
 
     #[test]

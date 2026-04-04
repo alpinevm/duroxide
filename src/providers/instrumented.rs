@@ -319,4 +319,8 @@ impl Provider for InstrumentedProvider {
     ) -> Result<std::collections::HashMap<String, String>, ProviderError> {
         self.inner.get_kv_all_values(instance).await
     }
+
+    async fn get_instance_stats(&self, instance: &str) -> Result<Option<crate::SystemStats>, ProviderError> {
+        self.inner.get_instance_stats(instance).await
+    }
 }

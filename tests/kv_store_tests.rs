@@ -2342,7 +2342,8 @@ async fn kv_client_get_all_values() {
         .unwrap();
 
     let all = client.get_kv_all_values("kv-all-1").await.unwrap();
-    assert_eq!(all.len(), 3);
+    let user_count = all.len();
+    assert_eq!(user_count, 3);
     assert_eq!(all.get("a").map(String::as_str), Some("1"));
     assert_eq!(all.get("b").map(String::as_str), Some("2"));
     assert_eq!(all.get("c").map(String::as_str), Some("3"));
@@ -2374,7 +2375,8 @@ async fn kv_client_get_all_values_empty() {
         .unwrap();
 
     let all = client.get_kv_all_values("kv-all-empty").await.unwrap();
-    assert!(all.is_empty());
+    let user_count = all.len();
+    assert_eq!(user_count, 0);
 
     rt.shutdown(None).await;
 }
@@ -2406,7 +2408,8 @@ async fn kv_client_get_all_values_after_overwrite() {
         .unwrap();
 
     let all = client.get_kv_all_values("kv-all-ow").await.unwrap();
-    assert_eq!(all.len(), 2);
+    let user_count = all.len();
+    assert_eq!(user_count, 2);
     assert_eq!(all.get("x").map(String::as_str), Some("new"));
     assert_eq!(all.get("y").map(String::as_str), Some("keep"));
 
@@ -2441,7 +2444,8 @@ async fn kv_client_get_all_values_after_clear() {
         .unwrap();
 
     let all = client.get_kv_all_values("kv-all-clr").await.unwrap();
-    assert_eq!(all.len(), 2);
+    let user_count = all.len();
+    assert_eq!(user_count, 2);
     assert_eq!(all.get("a").map(String::as_str), Some("1"));
     assert_eq!(all.get("c").map(String::as_str), Some("3"));
     assert!(!all.contains_key("b"));
@@ -2480,7 +2484,8 @@ async fn kv_client_get_all_values_across_can() {
 
     // All keys from all executions should be present (instance-scoped KV)
     let all = client.get_kv_all_values("kv-all-can").await.unwrap();
-    assert_eq!(all.len(), 3);
+    let user_count = all.len();
+    assert_eq!(user_count, 3);
     assert_eq!(all.get("key_0").map(String::as_str), Some("val_0"));
     assert_eq!(all.get("key_1").map(String::as_str), Some("val_1"));
     assert_eq!(all.get("key_2").map(String::as_str), Some("val_2"));

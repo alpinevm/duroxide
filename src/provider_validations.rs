@@ -143,6 +143,7 @@ pub use crate::provider_validation::atomicity::{
 pub use crate::provider_validation::error_handling::{
     test_corrupted_serialization_data, test_duplicate_event_id_rejection, test_invalid_lock_token_on_ack,
     test_lock_expiration_during_ack, test_missing_instance_metadata,
+    test_read_corrupted_history_returns_error, test_read_with_execution_corrupted_history_returns_error,
 };
 
 #[cfg(feature = "provider-test")]
@@ -178,8 +179,10 @@ pub use crate::provider_validation::queue_semantics::{
 
 #[cfg(feature = "provider-test")]
 pub use crate::provider_validation::management::{
-    test_get_execution_info, test_get_instance_info, test_get_queue_depths, test_get_system_metrics,
-    test_list_executions, test_list_instances, test_list_instances_by_status,
+    test_get_execution_info, test_get_instance_info, test_get_instance_stats_carry_forward,
+    test_get_instance_stats_history, test_get_instance_stats_kv, test_get_instance_stats_kv_delta_only,
+    test_get_instance_stats_kv_merged, test_get_instance_stats_nonexistent, test_get_queue_depths,
+    test_get_system_metrics, test_list_executions, test_list_instances, test_list_instances_by_status,
 };
 
 #[cfg(feature = "provider-test")]

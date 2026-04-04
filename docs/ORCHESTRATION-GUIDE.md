@@ -1149,6 +1149,36 @@ println!("Orchestrator queue: {}", queues.orchestrator_queue);
 println!("Worker queue: {}", queues.worker_queue);
 ```
 
+#### Orchestration Stats
+
+Query per-instance runtime introspection stats computed on-demand from the provider:
+
+```rust
+use duroxide::Client;
+
+let stats = client.get_orchestration_stats("my-instance").await?;
+match stats {
+    Some(s) => {
+        println!("History events: {}", s.history_event_count);
+        println!("History size: {} bytes", s.history_size_bytes);
+        println!("KV keys: {}", s.kv_user_key_count);
+        println!("KV value bytes: {}", s.kv_total_value_bytes);
+        println!("Pending carry-forward: {}", s.queue_pending_count);
+    }
+    None => println!("Instance not found"),
+}
+```
+
+The `SystemStats` struct contains:
+
+| Field | Description |
+|-------|-------------|
+| `history_event_count` | Total events in history for the current execution |
+| `history_size_bytes` | Approximate serialized size of the full history |
+| `queue_pending_count` | Unprocessed messages carried forward from the previous execution |
+| `kv_user_key_count` | Number of KV keys for the instance |
+| `kv_total_value_bytes` | Sum of all KV value sizes |
+
 ### Client Usage Patterns
 
 #### Fire-and-Forget
@@ -1319,6 +1349,7 @@ match client.wait_for_orchestration("test", Duration::from_secs(10)).await {
 | `read_execution_history()` | Read history | `Result<Vec<Event>, ClientError>` |
 | `get_system_metrics()` | System stats | `Result<SystemMetrics, ClientError>` |
 | `get_queue_depths()` | Queue depths | `Result<QueueDepths, ClientError>` |
+| `get_orchestration_stats()` | Per-instance stats | `Result<Option<SystemStats>, ClientError>` |
 
 ---
 
