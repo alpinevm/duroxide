@@ -2535,15 +2535,12 @@ impl Provider for SqliteProvider {
                 let data: String = row
                     .try_get("event_data")
                     .map_err(|e| Self::sqlx_to_provider_error("get_instance_stats", e))?;
-                let event: crate::Event =
-                    serde_json::from_str(&data).map_err(|e| {
-                        ProviderError::permanent(
-                            "get_instance_stats",
-                            format!(
-                                "Failed to deserialize OrchestrationStarted event: {e}"
-                            ),
-                        )
-                    })?;
+                let event: crate::Event = serde_json::from_str(&data).map_err(|e| {
+                    ProviderError::permanent(
+                        "get_instance_stats",
+                        format!("Failed to deserialize OrchestrationStarted event: {e}"),
+                    )
+                })?;
                 match event.kind {
                     crate::EventKind::OrchestrationStarted {
                         carry_forward_events: Some(ref events),

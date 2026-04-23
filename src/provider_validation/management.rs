@@ -773,7 +773,10 @@ pub async fn test_get_instance_stats_kv_merged<F: ProviderFactory>(factory: &F) 
         .await
         .unwrap()
         .expect("instance should exist (merged phase)");
-    assert_eq!(stats.kv_user_key_count, 2, "merged: still 2 keys (overwrite, not duplicate)");
+    assert_eq!(
+        stats.kv_user_key_count, 2,
+        "merged: still 2 keys (overwrite, not duplicate)"
+    );
     assert_eq!(stats.kv_total_value_bytes, 7, "merged: 5 + 2 = 7 bytes");
     assert_eq!(stats.queue_pending_count, 0, "no carry-forward events");
 

@@ -142,8 +142,8 @@ pub use crate::provider_validation::atomicity::{
 #[cfg(feature = "provider-test")]
 pub use crate::provider_validation::error_handling::{
     test_corrupted_serialization_data, test_duplicate_event_id_rejection, test_invalid_lock_token_on_ack,
-    test_lock_expiration_during_ack, test_missing_instance_metadata,
-    test_read_corrupted_history_returns_error, test_read_with_execution_corrupted_history_returns_error,
+    test_lock_expiration_during_ack, test_missing_instance_metadata, test_read_corrupted_history_returns_error,
+    test_read_with_execution_corrupted_history_returns_error,
 };
 
 #[cfg(feature = "provider-test")]

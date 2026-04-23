@@ -1,6 +1,6 @@
-use crate::provider_validation::{create_instance, Event, EventKind, ExecutionMetadata, start_item};
-use crate::provider_validations::ProviderFactory;
 use crate::INITIAL_EXECUTION_ID;
+use crate::provider_validation::{Event, EventKind, ExecutionMetadata, create_instance, start_item};
+use crate::provider_validations::ProviderFactory;
 use std::time::Duration;
 
 /// Test 3.1: Invalid Lock Token on Ack
@@ -209,15 +209,10 @@ pub async fn test_read_corrupted_history_returns_error<F: ProviderFactory>(facto
 
     // Verify read works before corruption
     let history = provider.read("inst-read-corrupt").await.unwrap();
-    assert!(
-        !history.is_empty(),
-        "History should contain events before corruption"
-    );
+    assert!(!history.is_empty(), "History should contain events before corruption");
 
     // Corrupt the history
-    factory
-        .corrupt_instance_history("inst-read-corrupt")
-        .await;
+    factory.corrupt_instance_history("inst-read-corrupt").await;
 
     // read() must return Err — not silently drop malformed events
     let result = provider.read("inst-read-corrupt").await;
@@ -230,9 +225,7 @@ pub async fn test_read_corrupted_history_returns_error<F: ProviderFactory>(facto
 
 /// Test 3.7: read_with_execution() returns error for corrupted history
 /// Goal: After corrupting event history, read_with_execution() must return Err, not an empty Vec.
-pub async fn test_read_with_execution_corrupted_history_returns_error<F: ProviderFactory>(
-    factory: &F,
-) {
+pub async fn test_read_with_execution_corrupted_history_returns_error<F: ProviderFactory>(factory: &F) {
     let provider = factory.create_provider().await;
     create_instance(&*provider, "inst-rwe-corrupt")
         .await
@@ -243,15 +236,10 @@ pub async fn test_read_with_execution_corrupted_history_returns_error<F: Provide
         .read_with_execution("inst-rwe-corrupt", INITIAL_EXECUTION_ID)
         .await
         .unwrap();
-    assert!(
-        !history.is_empty(),
-        "History should contain events before corruption"
-    );
+    assert!(!history.is_empty(), "History should contain events before corruption");
 
     // Corrupt the history
-    factory
-        .corrupt_instance_history("inst-rwe-corrupt")
-        .await;
+    factory.corrupt_instance_history("inst-rwe-corrupt").await;
 
     // read_with_execution() must return Err — not silently drop malformed events
     let result = provider

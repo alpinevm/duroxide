@@ -136,8 +136,6 @@ mod tests {
         test_list_instances,
         test_list_instances_by_status,
         test_lock_expiration_during_ack,
-        test_read_corrupted_history_returns_error,
-        test_read_with_execution_corrupted_history_returns_error,
         // Lock expiration tests
         test_lock_expires_after_timeout,
         test_lock_released_only_on_successful_ack,
@@ -155,6 +153,8 @@ mod tests {
         test_orchestration_lock_renewal_after_expiration,
         test_orphan_activity_after_instance_force_deletion,
         test_orphan_queue_messages_dropped,
+        test_read_corrupted_history_returns_error,
+        test_read_with_execution_corrupted_history_returns_error,
         test_renew_fails_when_entry_deleted,
         test_renew_returns_missing_when_instance_deleted,
         test_renew_returns_running_when_orchestration_active,
@@ -296,8 +296,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_sqlite_read_with_execution_corrupted_history_returns_error() {
-        test_read_with_execution_corrupted_history_returns_error(&SharedSqliteTestFactory::new().await)
-            .await;
+        test_read_with_execution_corrupted_history_returns_error(&SharedSqliteTestFactory::new().await).await;
     }
 
     // Instance locking tests
