@@ -3,7 +3,39 @@
 //! Tests for aggregate future behavior (select, join).
 
 use super::helpers::*;
+use async_trait::async_trait;
+use duroxide::{OrchestrationContext, OrchestrationHandler};
+use std::sync::Arc;
 use std::time::Duration;
+
+struct LargeSubOrchestrationFanInHandler {
+    count: usize,
+}
+
+impl LargeSubOrchestrationFanInHandler {
+    fn new(count: usize) -> Arc<Self> {
+        Arc::new(Self { count })
+    }
+}
+
+#[async_trait]
+impl OrchestrationHandler for LargeSubOrchestrationFanInHandler {
+    async fn invoke(&self, ctx: OrchestrationContext, _input: String) -> Result<String, String> {
+        let futures = (0..self.count)
+            .map(|idx| ctx.schedule_sub_orchestration_with_id("Child", format!("child-{idx}"), idx.to_string()))
+            .collect::<Vec<_>>();
+
+        let results = ctx.join(futures).await;
+        let completed = results.into_iter().collect::<Result<Vec<_>, _>>()?;
+        for (idx, result) in completed.iter().enumerate() {
+            if result != &idx.to_string() {
+                return Err(format!("result at index {idx} was {result}"));
+            }
+        }
+
+        Ok(completed.len().to_string())
+    }
+}
 
 /// select2 where activity wins (completes before timer).
 ///
@@ -192,4 +224,44 @@ fn join_one_fails() {
 
     // Join collects results, if one fails the combined result is Err
     assert_failed(&result);
+}
+
+/// Large fan-in where every sub-orchestration has completed in history.
+///
+/// This mirrors a production-scale failure mode: parent bulk orchestrations had
+/// all child SubOrchestrationCompleted events persisted, no queue items remained,
+/// but replay did not produce a terminal event for the parent.
+#[test]
+fn join_large_completed_sub_orchestration_fan_in_reaches_terminal() {
+    const FAN_IN_COUNT: usize = 1024;
+
+    let mut history = Vec::with_capacity(1 + FAN_IN_COUNT * 2);
+    history.push(started_event(1));
+
+    for idx in 0..FAN_IN_COUNT {
+        history.push(sub_orch_scheduled(
+            (idx + 2) as u64,
+            "Child",
+            &format!("child-{idx}"),
+            &idx.to_string(),
+        ));
+    }
+
+    for idx in 0..FAN_IN_COUNT {
+        history.push(sub_orch_completed(
+            (FAN_IN_COUNT + idx + 2) as u64,
+            (idx + 2) as u64,
+            &idx.to_string(),
+        ));
+    }
+
+    let mut engine = create_engine(history);
+    let handler = LargeSubOrchestrationFanInHandler::new(FAN_IN_COUNT);
+    let result = execute(&mut engine, handler);
+
+    assert_completed(&result, &FAN_IN_COUNT.to_string());
+    assert!(
+        engine.pending_actions().is_empty(),
+        "fully replayed fan-in should not emit new pending work"
+    );
 }
