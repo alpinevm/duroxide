@@ -2634,7 +2634,7 @@ async fn fast_updates(ctx: OrchestrationContext, items_json: String) -> Result<(
 
 **Symptom:** Non-deterministic behavior on replay
 
-**Fix:** Use `ctx.select2()` / `ctx.select3()` and `ctx.join()` instead—these use `futures::select_biased!` for determinism
+**Fix:** Use `ctx.select2()` / `ctx.select3()` and `ctx.join()` instead. These use Duroxide's replay-safe combinators for deterministic polling and winner selection.
 
 ---
 

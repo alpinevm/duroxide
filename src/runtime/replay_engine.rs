@@ -10,7 +10,7 @@ use std::future::Future;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
+use std::task::{Context, Poll};
 use tracing::{debug, warn};
 
 /// Result of executing an orchestration turn
@@ -1827,10 +1827,7 @@ fn update_action_event_id(action: Action, event_id: u64) -> Action {
 /// Poll a future once
 fn poll_once<F: Future + ?Sized>(fut: Pin<&mut F>) -> Poll<F::Output> {
     // Create a no-op waker
-    static VTABLE: RawWakerVTable =
-        RawWakerVTable::new(|_| RawWaker::new(std::ptr::null(), &VTABLE), |_| {}, |_| {}, |_| {});
-    let raw_waker = RawWaker::new(std::ptr::null(), &VTABLE);
-    let waker = unsafe { Waker::from_raw(raw_waker) };
+    let waker = std::task::Waker::noop();
     let mut cx = Context::from_waker(&waker);
     fut.poll(&mut cx)
 }

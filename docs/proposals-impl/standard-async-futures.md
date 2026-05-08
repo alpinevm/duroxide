@@ -15,18 +15,18 @@ This proposal has been implemented with the following design decisions:
 1. **Token-based scheduling**: `schedule_*()` methods emit actions with tokens that are bound to history event IDs during replay
 2. **Direct await**: `schedule_*()` returns `impl Future` that can be `.await`ed directly (no `.into_activity()` etc.)
 3. **Context-provided combinators**: Instead of raw `futures::select!`/`futures::join!`, orchestrations use:
-   - `ctx.join(futures)` / `ctx.join2(f1, f2)` / `ctx.join3(f1, f2, f3)` 
+    - `ctx.join(futures)` / `ctx.join2(f1, f2)` / `ctx.join3(f1, f2, f3)`
    - `ctx.select2(f1, f2)` / `ctx.select3(f1, f2, f3)`
-   
-   These combinators use `futures::select_biased!` internally for deterministic winner selection.
+
+    These combinators use local replay-safe futures for deterministic winner selection.
 
 4. **FIFO completion ordering**: Completions are delivered in history order to ensure deterministic replay
 
-**Key difference from original proposal:** The original proposal suggested using raw `futures::select!` and `futures::join!` macros directly. The actual implementation provides `ctx.*` wrapper methods that ensure deterministic behavior via `futures::select_biased!` for selects and `futures::join_all` for joins.
+**Key difference from original proposal:** The original proposal suggested using raw `futures::select!` and `futures::join!` macros directly. The actual implementation provides `ctx.*` wrapper methods that ensure deterministic behavior via replay-safe local select and poll-all join implementations.
 
 **Why `ctx.*` combinators instead of raw `futures::*`?**
 - `futures::select!` uses pseudo-random polling order - non-deterministic
-- `ctx.select2/3()` uses `futures::select_biased!` - deterministic (first branch always polled first)
+- `ctx.select2/3()` uses a local biased select future - deterministic (first branch always polled first)
 - This ensures replay produces identical results
 
 See [docs/ORCHESTRATION-GUIDE.md](../docs/ORCHESTRATION-GUIDE.md) for usage examples and [docs/durable-futures-internals.md](../docs/durable-futures-internals.md) for implementation details.

@@ -78,7 +78,7 @@ All APIs now use clean names without `simplified_` prefix:
 | Area | Behavior |
 |------|----------|
 | `join()` | Returns results in schedule order (not history completion order) |
-| `select2/3()` | Uses `futures::select_biased!` for deterministic winner selection |
+| `select2/3()` | Uses local biased select futures for deterministic winner selection |
 | `trace*()` | Traces are emitted but not stored in history |
 
 ### TBD: Cancellation Wiring (Orchestration → Activities)
