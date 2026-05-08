@@ -111,7 +111,7 @@ match ctx.select2(activity, timeout).await {
 }
 ```
 
-`select2` uses `futures::select_biased!` internally—the first future to complete wins, and the loser is dropped.
+`select2` polls branches in argument order using Duroxide's local replay-safe select future. The first future to complete wins, and the loser is dropped.
 
 ### Join (Fan-out)
 
@@ -123,7 +123,7 @@ let f3 = ctx.schedule_activity("Task", "C");
 let results = ctx.join(vec![f1, f2, f3]).await;  // Wait for all 3
 ```
 
-`join` uses `futures::future::join_all` internally—all futures run concurrently and results are collected in order.
+`join` polls every pending child future on each replay poll, so large fan-outs remain deterministic even though the replay engine does not rely on child wake notifications. Results are collected in input order.
 
 ### Session Affinity
 

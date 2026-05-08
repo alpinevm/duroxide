@@ -14,7 +14,7 @@ categories = ["asynchronous", "concurrency"]
 [features]
 default = []
 sqlite = ["sqlx", "libsqlite3-sys"]  # SQLite provider (bundled, no system deps)
-provider-test = []  # Provider validation test harness (generic, no provider dependency)
+provider-test = ["futures"]  # Provider validation test harness (generic, no provider dependency)
 test = ["provider-test", "test-hooks"]  # Auto-enable provider-test and test-hooks for tests
 test-hooks = []  # Enable test hooks for fault injection in integration tests
 replay-version-test = ["test"]  # Zero-cost: only gates test code for replay engine extensibility verification
@@ -22,13 +22,15 @@ replay-version-test = ["test"]  # Zero-cost: only gates test code for replay eng
 [dependencies]
 tokio = { version = "1", features = ["full"] }
 tokio-util = "0.7"  # For CancellationToken
-futures = "0.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 async-trait = "0.1"
 tracing = { version = "0.1", features = ["std"] }
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter", "json"] }
 semver = "1"
+
+# used by provider-tests
+futures = { version = "0.3", optional = true }
 
 # Metrics facade (always on, zero-cost if no recorder installed)
 metrics = "0.24"

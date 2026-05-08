@@ -127,11 +127,11 @@ One motivation for this replay simplification is enabling orchestrations to expr
 - With this replay model, the only source of progress is history-delivered information (completions/external/cancel). The engine only polls when such information is delivered, making scheduling deterministic.
 
 ### Planned implementation approach
-- `select` combinator: delegate to `futures::select_biased`.
-   - Rationale: deterministic tie-breaking via left-biased polling order.
+- `select` combinator: use Duroxide's local biased select future.
+   - Rationale: deterministic tie-breaking via left-biased polling order without relying on upstream combinator internals.
    - Requirement: operand order must be stable across replays (no data-dependent reordering of branches).
-- `join` combinator: delegate to `futures::join`.
-   - Rationale: deterministic completion after both branches resolve.
+- `join` combinator: use Duroxide's local poll-all join futures.
+   - Rationale: deterministic completion after all branches resolve without relying on child wake notifications.
 
 ### Cancellation semantics interaction
 - For `select` that cancels the loser: Duroxide should deterministically mark the loser branch as cancelled at the orchestration level (to avoid FIFO stalls) and may additionally trigger physical cancellation (best-effort) via `Drop` / provider cancellation.

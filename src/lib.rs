@@ -810,6 +810,7 @@ use serde::{Deserialize, Serialize};
 use std::time::{Duration as StdDuration, SystemTime, UNIX_EPOCH};
 
 // Internal codec utilities for typed I/O (kept private; public API remains ergonomic)
+mod combinators;
 mod _typed_codec {
     use serde::{Serialize, de::DeserializeOwned};
     use serde_json::Value;
@@ -3417,7 +3418,7 @@ impl OrchestrationContext {
     }
 }
 
-// Aggregate future machinery lives below (OrchestrationContext helpers)
+// Aggregate future machinery lives in combinators.rs (OrchestrationContext helpers)
 
 impl OrchestrationContext {
     // =========================================================================
@@ -3886,13 +3887,16 @@ impl OrchestrationContext {
             .map(|r| r.and_then(|s| crate::_typed_codec::Json::decode::<Out>(&s)))
     }
 
-    /// Await all futures concurrently using `futures::future::join_all`.
-    /// Works with any `Future` type.
+    /// Await all futures concurrently, polling every pending future on each replay poll.
+    ///
+    /// This intentionally avoids `futures::future::join_all`, which switches large joins to a
+    /// waker-driven implementation. The replay engine drives orchestration futures by polling at
+    /// deterministic history boundaries, so `join` must not rely on child wake notifications.
     pub async fn join<T, F>(&self, futures: Vec<F>) -> Vec<T>
     where
         F: Future<Output = T>,
     {
-        ::futures::future::join_all(futures).await
+        combinators::PollAllJoin::new(futures).await
     }
 
     /// Simplified join for exactly 2 futures (convenience method).
@@ -3901,7 +3905,7 @@ impl OrchestrationContext {
         F1: Future<Output = T1>,
         F2: Future<Output = T2>,
     {
-        ::futures::future::join(f1, f2).await
+        combinators::PollAllJoin2::new(f1, f2).await
     }
 
     /// Simplified join for exactly 3 futures (convenience method).
@@ -3911,14 +3915,14 @@ impl OrchestrationContext {
         F2: Future<Output = T2>,
         F3: Future<Output = T3>,
     {
-        ::futures::future::join3(f1, f2, f3).await
+        combinators::PollAllJoin3::new(f1, f2, f3).await
     }
 
     /// Simplified select over 2 futures: returns the result of whichever completes first.
     /// Select over 2 futures with potentially different output types.
     ///
     /// Returns `Either2::First(result)` if first future wins, `Either2::Second(result)` if second wins.
-    /// Uses futures::select_biased! for determinism (first branch polled first).
+    /// Polls futures in argument order for deterministic biased winner selection.
     ///
     /// # Example: Activity with timeout
     /// ```rust,no_run
@@ -3939,34 +3943,20 @@ impl OrchestrationContext {
         F1: Future<Output = T1>,
         F2: Future<Output = T2>,
     {
-        use ::futures::FutureExt;
-        let mut f1 = std::pin::pin!(f1.fuse());
-        let mut f2 = std::pin::pin!(f2.fuse());
-        ::futures::select_biased! {
-            result = f1 => Either2::First(result),
-            result = f2 => Either2::Second(result),
-        }
+        combinators::Select2::new(f1, f2).await
     }
 
     /// Select over 3 futures with potentially different output types.
     ///
     /// Returns `Either3::First/Second/Third(result)` depending on which future completes first.
-    /// Uses futures::select_biased! for determinism (earlier branches polled first).
+    /// Polls futures in argument order for deterministic biased winner selection.
     pub async fn select3<T1, T2, T3, F1, F2, F3>(&self, f1: F1, f2: F2, f3: F3) -> Either3<T1, T2, T3>
     where
         F1: Future<Output = T1>,
         F2: Future<Output = T2>,
         F3: Future<Output = T3>,
     {
-        use ::futures::FutureExt;
-        let mut f1 = std::pin::pin!(f1.fuse());
-        let mut f2 = std::pin::pin!(f2.fuse());
-        let mut f3 = std::pin::pin!(f3.fuse());
-        ::futures::select_biased! {
-            result = f1 => Either3::First(result),
-            result = f2 => Either3::Second(result),
-            result = f3 => Either3::Third(result),
-        }
+        combinators::Select3::new(f1, f2, f3).await
     }
 }
 
