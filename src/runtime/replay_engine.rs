@@ -1828,7 +1828,7 @@ fn update_action_event_id(action: Action, event_id: u64) -> Action {
 fn poll_once<F: Future + ?Sized>(fut: Pin<&mut F>) -> Poll<F::Output> {
     // Create a no-op waker
     let waker = std::task::Waker::noop();
-    let mut cx = Context::from_waker(&waker);
+    let mut cx = Context::from_waker(waker);
     fut.poll(&mut cx)
 }
 

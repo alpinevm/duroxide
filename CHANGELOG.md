@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.29] - 2026-05-08
+
+**Release:** <https://crates.io/crates/duroxide/0.1.29>
+
+**Proposal:** [Standard Async/Await Support](https://github.com/microsoft/duroxide/blob/main/docs/proposals-impl/standard-async-futures.md)
+
+### Changed
+
+- **Replay-safe orchestration combinators** — Replaced the use of `futures::join_all`,
+  `futures::join`, `futures::join3`, and `futures::select_biased!` inside
+  `OrchestrationContext::join`, `join2`, `join3`, `select2`, and `select3` with new
+  crate-local implementations (`PollAllJoin`, `PollAllJoin2`, `PollAllJoin3`, `Select2`,
+  `Select3` in `src/combinators.rs`). The local implementations poll every pending child
+  future on each replay pass, which is required for correctness under Duroxide's
+  deterministic replay engine — `futures::join_all` switches large fan-ins to a
+  waker-driven `FuturesOrdered`/`FuturesUnordered` path that relies on child wake
+  notifications the replay engine intentionally does not drive. This eliminates a
+  latent large-fan-in replay hang that surfaced at ≥ 1024 children.
+- **`futures` crate is now optional** — Moved to an optional dependency enabled only by
+  the `provider-test` feature (provider validation code outside orchestration replay still
+  uses `futures` helpers). Main-crate builds no longer pull in the `futures` crate by
+  default, trimming the dependency tree for users who only need the runtime.
+
+### Added
+
+- **Large fan-in replay regression test** — Added `large_fan_in_replay_regression`
+  covering 1024-child parallel fan-in in `tests/replay_engine/composition.rs`. Verifies
+  that the new `PollAllJoin` implementation completes without deadlock or spurious
+  nondeterminism errors.
+
+### Fixed
+
+- **Clippy `needless_borrow` in `poll_once`** — Removed an unnecessary `&` in
+  `Context::from_waker` call inside `replay_engine.rs` (`&waker` → `waker`).
+
 ## [0.1.28] - 2026-04-23
 
 ### Changed
